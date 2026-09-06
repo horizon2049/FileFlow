@@ -1,0 +1,39 @@
+{
+  "name": "photoflow",
+  "version": "0.1.0",
+  "description": "相机选片桌面端应用：预览 JPG、标记淘汰、联动删除同名 RAW",
+  "main": "./out/main/index.js",
+  "author": "horizon",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "npm run typecheck && electron-vite build",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
+    "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
+    "pretest": "esbuild test/main.test.ts --bundle --platform=node --format=cjs --external:electron --alias:@shared=./src/shared --outfile=out/test/main.test.cjs",
+    "test": "electron out/test/main.test.cjs",
+    "build:win": "npm run build && electron-builder --win --x64",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux",
+    "build:unpack": "npm run build && electron-builder --dir"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "electron": "38.8.6",
+    "electron-builder": "26.15.3",
+    "electron-vite": "3.1.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "5.9.3",
+    "vite": "6.4.3"
+  }
+}
