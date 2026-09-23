@@ -27,6 +27,8 @@ function Thumbnail({
     .filter(Boolean)
     .join(' ')
 
+  const isVideo = photo.kind === 'video'
+
   return (
     <button
       type="button"
@@ -36,16 +38,24 @@ function Thumbnail({
       onDoubleClick={() => onToggleReject(photo.path)}
       title={`${photo.name}${photo.sidecars.length > 0 ? `（含 ${photo.sidecars.length} 个同名文件）` : ''}`}
       aria-current={active}
-      aria-label={`第 ${index + 1} 张 ${photo.name}${rejected ? '，已标记淘汰' : ''}`}
+      aria-label={`第 ${index + 1} 个 ${photo.name}${isVideo ? '，视频' : ''}${rejected ? '，已标记淘汰' : ''}`}
     >
-      <img
-        src={toImageUrl(photo.path, { thumb: true, mtimeMs: photo.mtimeMs })}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-      />
+      {isVideo ? (
+        // 视频没有 nativeImage 缩略图，用占位块 + 播放图标，避免加载整段视频。
+        <span className="thumb-video-placeholder" aria-hidden>
+          ▶
+        </span>
+      ) : (
+        <img
+          src={toImageUrl(photo.path, { thumb: true, mtimeMs: photo.mtimeMs })}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
+      )}
       <span className="thumb-name">{photo.name}</span>
+      {isVideo && <span className="badge video">视频</span>}
       {photo.sidecars.length > 0 && <span className="badge raw">RAW</span>}
       {rejected && <span className="badge reject">✕</span>}
     </button>

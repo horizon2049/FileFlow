@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { toImageUrl } from '@shared/ipc'
 import type { Photo } from '@shared/types'
 import { basename } from '../format'
@@ -11,56 +11,87 @@ interface Props {
   onReveal: () => void
 }
 
-/** 大图预览。切换照片时先显示缩略图，原图解码完再替换，翻页不至于白屏。 */
-export default function Viewer({
-  photo,
-  rejected,
-  onToggleReject,
-  onDelete,
-  onReveal
-}: Props): React.JSX.Element {
-  const [fullLoaded, setFullLoaded] = useState(false)
+/** 暴露给父组件的命令式操作，用于键盘控制视频。 */
+export interface ViewerHandle {
+  /** 相对当前进度快进/回退 seconds 秒（负数为回退）；非视频时无效。 */
+  seek: (seconds: number) => void
+  /** 播放/暂停切换；非视频时无效。 */
+  togglePlay: () => void
+}
+
+/** 大图/视频预览。图片直接加载原图；视频用 <video controls> 播放并支持流式拖动。 */
+const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(
+  { photo, rejected, onToggleReject, onDelete, onReveal },
+  ref
+): React.JSX.Element {
   const [failed, setFailed] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    setFullLoaded(false)
     setFailed(false)
   }, [photo.path])
 
-  const thumbUrl = toImageUrl(photo.path, { thumb: true, mtimeMs: photo.mtimeMs })
+  useImperativeHandle(
+    ref,
+    () => ({
+      seek: (seconds: number) => {
+        const v = videoRef.current
+        if (!v || !Number.isFinite(v.duration)) return
+        const next = Math.min(Math.max(v.currentTime + seconds, 0), v.duration)
+        v.currentTime = next
+      },
+      togglePlay: () => {
+        const v = videoRef.current
+        if (!v) return
+        if (v.paused) void v.play().catch(() => undefined)
+        else v.pause()
+      }
+    }),
+    []
+  )
+
+  const isVideo = photo.kind === 'video'
   const fullUrl = toImageUrl(photo.path, { mtimeMs: photo.mtimeMs })
 
   return (
     <div className={rejected ? 'viewer rejected' : 'viewer'}>
       <div className="canvas">
         {failed ? (
-          <div className="empty">图片无法读取，可能已被移动或损坏</div>
+          <div className="empty">
+            {isVideo ? '视频无法播放，可能格式不受支持或文件已损坏' : '图片无法读取，可能已被移动或损坏'}
+          </div>
+        ) : isVideo ? (
+          <video
+            key={photo.path}
+            ref={videoRef}
+            className="layer full-layer ready"
+            src={fullUrl}
+            controls
+            preload="metadata"
+            onError={() => setFailed(true)}
+          />
         ) : (
-          <>
-            {/* 缩略图垫底，原图加载完成后叠上去。 */}
-            <img className="layer thumb-layer" src={thumbUrl} alt="" aria-hidden />
-            <img
-              className={fullLoaded ? 'layer full-layer ready' : 'layer full-layer'}
-              src={fullUrl}
-              alt={photo.name}
-              decoding="async"
-              onLoad={() => setFullLoaded(true)}
-              onError={() => setFailed(true)}
-              draggable={false}
-            />
-          </>
+          <img
+            className="layer full-layer ready"
+            src={fullUrl}
+            alt={photo.name}
+            decoding="async"
+            onError={() => setFailed(true)}
+            draggable={false}
+          />
         )}
         {rejected && <div className="reject-overlay">已标记淘汰</div>}
       </div>
 
       <div className="viewer-actions">
         <button onClick={onToggleReject}>
-          {rejected ? '取消淘汰标记 (P)' : '标记淘汰 (X)'}
+          {rejected ? '取消淘汰标记 (Z)' : '标记淘汰 (X)'}
         </button>
         <button className="danger" onClick={onDelete}>
-          删除这张 (Delete)
+          删除这个 (D)
         </button>
         <button onClick={onReveal}>在文件夹中显示</button>
+        {isVideo && <span className="video-hint">空格 播放/暂停 · ← → 快退/快进 5 秒</span>}
         {photo.sidecars.length > 0 && (
           <span className="sidecar-hint">
             将一并删除：{photo.sidecars.map(basename).join('、')}
@@ -69,4 +100,6 @@ export default function Viewer({
       </div>
     </div>
   )
-}
+})
+
+export default Viewer

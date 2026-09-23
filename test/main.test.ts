@@ -48,7 +48,7 @@ async function it(name: string, fn: () => Promise<void>): Promise<void> {
 
 /** 铺一份固定的测试目录。 */
 async function fixture(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'photoflow-test-'))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'fileflow-test-'))
   const write = (name: string, data: Buffer | string) => fs.writeFile(path.join(dir, name), data)
 
   await Promise.all([
@@ -64,7 +64,9 @@ async function fixture(): Promise<string> {
     write('DSC00042.ARW', 'sony raw'),
     write('DSC00042.ARW.xmp', '挂在 RAW 上的边车'),
     write('notes.txt', '非图片，应被忽略'),
-    write('P1011680.RW2', '孤立 RAW，没有同名 JPG，不该出现在列表里')
+    write('P1011680.RW2', '孤立 RAW，没有同名 JPG，不该出现在列表里'),
+    write('MOV_0001.MP4', 'fake mp4 bytes'),
+    write('MOV_0001.mov', 'fake mov bytes')
   ])
   await fs.mkdir(path.join(dir, 'sub'))
   await write(path.join('sub', 'CHILD.JPG'), JPEG)
@@ -80,13 +82,30 @@ const exists = (p: string) =>
 async function run(): Promise<void> {
   console.log('photoLibrary.scanDirectory')
 
-  await it('只列 JPG，忽略 txt、孤立 RAW 和子目录', async () => {
+  await it('列出图片和视频，忽略 txt、孤立 RAW 和子目录', async () => {
     const dir = await fixture()
     const { photos } = await scanDirectory(dir)
     assert.deepEqual(
       photos.map((p) => p.name),
-      ['DSC00042.JPG', 'IMG_0001.JPG', 'P1011677.JPG', 'P1011678.JPG', 'P1011679.JPG']
+      [
+        'DSC00042.JPG',
+        'IMG_0001.JPG',
+        'MOV_0001.mov',
+        'MOV_0001.MP4',
+        'P1011677.JPG',
+        'P1011678.JPG',
+        'P1011679.JPG'
+      ]
     )
+  })
+
+  await it('按扩展名标记 image / video', async () => {
+    const dir = await fixture()
+    const { photos } = await scanDirectory(dir)
+    const byName = new Map(photos.map((p) => [p.name, p.kind]))
+    assert.equal(byName.get('P1011677.JPG'), 'image')
+    assert.equal(byName.get('MOV_0001.MP4'), 'video')
+    assert.equal(byName.get('MOV_0001.mov'), 'video')
   })
 
   await it('配出同名 RAW，含小写扩展名与 XMP 边车', async () => {
@@ -141,14 +160,19 @@ async function run(): Promise<void> {
   await it('批量删除多张，条目数等于 JPG 加附属文件', async () => {
     const dir = await fixture()
     const { photos } = await scanDirectory(dir)
-    const targets = photos.filter((p) => p.name !== 'P1011679.JPG')
+    // 只删有 RAW/边车的图片，保留 P1011679.JPG 和两个视频，方便核对剩余。
+    const keep = new Set(['P1011679.JPG', 'MOV_0001.MP4', 'MOV_0001.mov'])
+    const targets = photos.filter((p) => !keep.has(p.name))
     const result = await deletePhotos(targets)
 
     assert.equal(result.failures.length, 0)
     assert.equal(result.batch.photos.length, 4)
     // 4 张 JPG + RW2 + rw2 + CR3 + JPG.xmp + ARW + ARW.xmp = 10
     assert.equal(result.batch.entries.length, 10)
-    assert.deepEqual((await scanDirectory(dir)).photos.map((p) => p.name), ['P1011679.JPG'])
+    assert.deepEqual(
+      (await scanDirectory(dir)).photos.map((p) => p.name).sort((a, b) => a.localeCompare(b, 'en')),
+      ['MOV_0001.mov', 'MOV_0001.MP4', 'P1011679.JPG']
+    )
   })
 
   console.log('trashManager.undoDelete')

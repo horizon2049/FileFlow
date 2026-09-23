@@ -1,4 +1,4 @@
-# PhotoFlow
+# FileFlow
 
 相机选片桌面端应用。只预览文件夹里的 JPG，删除 JPG 时自动带走同名的 RAW/XMP 文件。
 
@@ -6,7 +6,7 @@
 
 - **只列 JPG**：扫描所选文件夹顶层的 `.jpg` / `.jpeg`，不进子目录。
 - **联动删除**：删 `P1011677.JPG` 时，同目录下同名的 `P1011677.RW2`、`P1011677.CR3`、`P1011677.xmp` 等一并删除。完整清单见 `src/shared/types.ts` 的 `SIDECAR_EXTENSIONS`，匹配不区分大小写。删除前的确认框会逐条列出要带走的文件。
-- **两段式删除**：删除时文件先移入照片目录下的隐藏文件夹 `.photoflow-trash/<批次id>/`（同分区 rename，SD 卡上也是瞬时完成），所以可以无限次撤销；退出应用时把整个暂存区一次性交给系统回收站。
+- **两段式删除**：删除时文件先移入照片目录下的隐藏文件夹 `.fileflow-trash/<批次id>/`（同分区 rename，SD 卡上也是瞬时完成），所以可以无限次撤销；退出应用时把整个暂存区一次性交给系统回收站。
 - **异常退出的残留**：下次打开同一目录时会弹窗询问，可选择移入系统回收站或暂不处理。
 
 ## 快捷键
@@ -39,7 +39,7 @@ npm run build        # 类型检查 + 构建产物到 out/
 Windows 安装包需要在 Windows 机器上执行（macOS 上交叉构建 NSIS 要额外装 wine）：
 
 ```bash
-npm run build:win    # 产出 release/PhotoFlow-<版本>-x64-setup.exe
+npm run build:win    # 产出 release/FileFlow-<版本>-x64-setup.exe
 ```
 
 macOS / Linux 的配置已在 `electron-builder.yml` 里写好：

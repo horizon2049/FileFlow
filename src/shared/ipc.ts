@@ -1,22 +1,22 @@
 /** 主进程与渲染进程之间的 IPC 频道名。 */
 export const IPC = {
-  pickDirectory: 'photoflow:pick-directory',
-  scanDirectory: 'photoflow:scan-directory',
-  deletePhotos: 'photoflow:delete-photos',
-  undoDelete: 'photoflow:undo-delete',
-  revealInFolder: 'photoflow:reveal-in-folder',
-  reportStaleTrash: 'photoflow:report-stale-trash'
+  pickDirectory: 'fileflow:pick-directory',
+  scanDirectory: 'fileflow:scan-directory',
+  deletePhotos: 'fileflow:delete-photos',
+  undoDelete: 'fileflow:undo-delete',
+  revealInFolder: 'fileflow:reveal-in-folder',
+  reportStaleTrash: 'fileflow:report-stale-trash'
 } as const
 
 /** 渲染进程读取本地图片用的自定义协议，绕开 file:// 在打包后的限制。 */
-export const IMAGE_PROTOCOL = 'photoflow-img'
+export const IMAGE_PROTOCOL = 'fileflow-img'
 
 /** 缩略图长边像素，网格视图用；不传则返回原图。 */
 export const THUMB_SIZE = 480
 
 /**
- * 把本地绝对路径转成渲染进程可用的图片 URL。
- * 带 thumb 时主进程返回缩略图，避免网格里一次解码几百张全尺寸 JPG。
+ * 把本地绝对路径转成渲染进程可用的媒体 URL。
+ * 带 thumb 时主进程返回缩略图（仅图片有效），避免网格里一次解码几百张全尺寸文件。
  * mtime 进入 URL，文件被外部改动后能自然绕过缓存。
  */
 export function toImageUrl(filePath: string, opts?: { thumb?: boolean; mtimeMs?: number }): string {

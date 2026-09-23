@@ -46,7 +46,7 @@ export default function ConfirmDialog({ pending, onCancel, onConfirm }: Props): 
           删除 {pending.photos.length} 张照片，共 {total} 个文件
         </h2>
         <p className="modal-note">
-          文件先移入照片目录下的 <code>.photoflow-trash</code>，可按 Ctrl+Z 撤销；退出应用时统一移入系统回收站。
+          文件先移入照片目录下的 <code>.fileflow-trash</code>，可按 Ctrl+Z 撤销；退出应用时统一移入系统回收站。
         </p>
 
         <ul className="file-list">

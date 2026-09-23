@@ -50,7 +50,7 @@ function describe(err: unknown): string {
 
 /**
  * 把照片及其同名附属文件搬进暂存区。
- * 同一批次内所有文件放在 `<照片目录>/.photoflow-trash/<批次id>/` 下，
+ * 同一批次内所有文件放在 `<照片目录>/.fileflow-trash/<批次id>/` 下，
  * 因此文件名不会互相覆盖，撤销时也能整批还原。
  */
 export async function deletePhotos(photos: Photo[]): Promise<DeleteResult> {
@@ -155,10 +155,10 @@ export async function flushTrashToSystem(): Promise<void> {
       )
       if (!ok) {
         // 回收站不可用（如网络盘、外置卡的某些文件系统），保留暂存区交由用户处置。
-        console.warn(`[photoflow] 暂存区未能进入系统回收站，已原样保留：${root}`)
+        console.warn(`[fileflow] 暂存区未能进入系统回收站，已原样保留：${root}`)
       }
     } catch (err) {
-      console.warn(`[photoflow] 清理暂存区失败：${root}`, err)
+      console.warn(`[fileflow] 清理暂存区失败：${root}`, err)
     }
   }
   touchedTrashRoots.clear()

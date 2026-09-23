@@ -4,6 +4,7 @@ import { useKeyboard } from './useKeyboard'
 import { basename, formatBytes } from './format'
 import Thumbnail from './components/Thumbnail'
 import Viewer from './components/Viewer'
+import type { ViewerHandle } from './components/Viewer'
 import ConfirmDialog from './components/ConfirmDialog'
 import Toasts from './components/Toasts'
 import Shortcuts from './components/Shortcuts'
@@ -18,6 +19,7 @@ export default function App(): React.JSX.Element {
   )
 
   const stripRef = useRef<HTMLDivElement>(null)
+  const viewerRef = useRef<ViewerHandle>(null)
 
   // 光标移动后把当前格滚进视野，否则键盘翻页会跟丢。
   useEffect(() => {
@@ -36,6 +38,8 @@ export default function App(): React.JSX.Element {
   useKeyboard({
     disabled: busy || loading || pending !== null,
     onStep: s.step,
+    onSeek: (seconds) => viewerRef.current?.seek(seconds),
+    onTogglePlay: () => viewerRef.current?.togglePlay(),
     onToggleReject: () => current && s.toggleReject(current.path),
     onKeep: () => current && s.setRejectedFlag(current.path, false),
     onDelete: deleteCurrent,
@@ -77,11 +81,12 @@ export default function App(): React.JSX.Element {
         <section className="stage">
           {current ? (
             <Viewer
+              ref={viewerRef}
               photo={current}
               rejected={rejected.has(current.path)}
               onToggleReject={() => s.toggleReject(current.path)}
               onDelete={deleteCurrent}
-              onReveal={() => void window.photoflow.revealInFolder(current.path)}
+              onReveal={() => void window.fileflow.revealInFolder(current.path)}
             />
           ) : (
             <Empty loading={loading} hasDir={dir !== null} onOpen={() => void s.openDirectory()} />
@@ -141,7 +146,7 @@ function Empty({
   if (loading) return <div className="empty">正在扫描…</div>
   return (
     <div className="empty">
-      <p>{hasDir ? '该文件夹下没有 JPG 文件' : '选择一个相机导出的文件夹开始选片'}</p>
+      <p>{hasDir ? '该文件夹下没有可预览的图片或视频' : '选择一个文件夹开始浏览图片和视频'}</p>
       <button className="primary" onClick={onOpen}>
         打开文件夹
       </button>

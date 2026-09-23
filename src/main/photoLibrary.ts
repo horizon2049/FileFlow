@@ -1,14 +1,25 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { PREVIEW_EXTENSIONS, SIDECAR_EXTENSIONS, TRASH_DIR_NAME } from '@shared/types'
-import type { Photo, ScanResult } from '@shared/types'
+import {
+  IMAGE_EXTENSIONS,
+  PREVIEW_EXTENSIONS,
+  SIDECAR_EXTENSIONS,
+  TRASH_DIR_NAME
+} from '@shared/types'
+import type { MediaKind, Photo, ScanResult } from '@shared/types'
 
 const previewExts = new Set<string>(PREVIEW_EXTENSIONS)
+const imageExts = new Set<string>(IMAGE_EXTENSIONS)
 const sidecarExts = new Set<string>(SIDECAR_EXTENSIONS)
 
-/** 判断是否是要预览的 JPG。 */
+/** 判断是否是要预览的媒体（图片或视频）。 */
 function isPreviewable(name: string): boolean {
   return previewExts.has(path.extname(name).toLowerCase())
+}
+
+/** 按扩展名判定媒体类型。 */
+function kindOf(name: string): MediaKind {
+  return imageExts.has(path.extname(name).toLowerCase()) ? 'image' : 'video'
 }
 
 /**
@@ -24,7 +35,7 @@ function isSidecarOf(candidateLower: string, stemLower: string): boolean {
 }
 
 /**
- * 扫描目录顶层的 JPG，并为每张 JPG 找出同目录下的同名附属文件。
+ * 扫描目录顶层的图片与视频，并为每个媒体找出同目录下的同名附属文件。
  * 不进入子目录，跳过暂存区。
  */
 export async function scanDirectory(dir: string): Promise<ScanResult> {
@@ -35,10 +46,10 @@ export async function scanDirectory(dir: string): Promise<ScanResult> {
   const byLowerName = new Map<string, string>()
   for (const name of fileNames) byLowerName.set(name.toLowerCase(), name)
 
-  const jpgNames = fileNames.filter(isPreviewable).sort((a, b) => a.localeCompare(b, 'en'))
+  const mediaNames = fileNames.filter(isPreviewable).sort((a, b) => a.localeCompare(b, 'en'))
 
   const photos: Photo[] = []
-  for (const name of jpgNames) {
+  for (const name of mediaNames) {
     const filePath = path.join(dir, name)
     let stat: Awaited<ReturnType<typeof fs.stat>>
     try {
@@ -59,6 +70,7 @@ export async function scanDirectory(dir: string): Promise<ScanResult> {
     photos.push({
       path: filePath,
       name,
+      kind: kindOf(name),
       dir,
       size: stat.size,
       mtimeMs: stat.mtimeMs,

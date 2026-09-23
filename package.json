@@ -1,5 +1,5 @@
 {
-  "name": "photoflow",
+  "name": "fileflow",
   "version": "0.1.0",
   "description": "相机选片桌面端应用：预览 JPG、标记淘汰、联动删除同名 RAW",
   "main": "./out/main/index.js",

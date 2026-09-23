@@ -1,4 +1,4 @@
-import type { PhotoFlowApi } from './types'
+import type { FileFlowApi } from './types'
 
 /**
  * preload 通过 contextBridge 挂到 window 上的 API。
@@ -6,6 +6,6 @@ import type { PhotoFlowApi } from './types'
  */
 declare global {
   interface Window {
-    photoflow: PhotoFlowApi
+    fileflow: FileFlowApi
   }
 }

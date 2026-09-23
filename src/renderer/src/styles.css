@@ -154,26 +154,12 @@ button.danger:hover:not(:disabled) {
   padding: 16px;
 }
 
-/* 两层占同一个网格格子，都用 100% + contain，缩放后的可视矩形才会严格重合。 */
+/* 大图铺满画布，等比 contain。 */
 .layer {
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-/* 缩略图垫底，原图解码完淡入覆盖，翻页时不白屏。 */
-.thumb-layer {
-  filter: blur(2px);
-}
-
-.full-layer {
-  opacity: 0;
-  transition: opacity 120ms ease-out;
-}
-
-.full-layer.ready {
-  opacity: 1;
 }
 
 .viewer.rejected .canvas {
@@ -203,6 +189,10 @@ button.danger:hover:not(:disabled) {
 
 .sidecar-hint {
   color: var(--warn);
+}
+
+.video-hint {
+  color: var(--text-dim);
 }
 
 .empty {
@@ -249,6 +239,18 @@ button.danger:hover:not(:disabled) {
   background: #000;
 }
 
+/* 视频缩略图占位：不加载整段视频，用暗块 + 播放图标示意。 */
+.thumb-video-placeholder {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  background: linear-gradient(135deg, #23262d, #14161a);
+  color: var(--text-dim);
+  font-size: 24px;
+}
+
 .thumb.active {
   border-color: var(--accent);
 }
@@ -286,6 +288,18 @@ button.danger:hover:not(:disabled) {
   left: 4px;
   background: color-mix(in srgb, var(--warn) 85%, #000);
   color: #1a1204;
+}
+
+.badge.video {
+  left: 4px;
+  background: color-mix(in srgb, var(--accent) 85%, #000);
+  color: #fff;
+}
+
+/* RAW 和视频角标可能同时出现，视频角标往右让位。 */
+.badge.raw + .badge.video,
+.badge.video ~ .badge.raw {
+  left: 44px;
 }
 
 .badge.reject {

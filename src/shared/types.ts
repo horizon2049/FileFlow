@@ -1,7 +1,13 @@
 /** 主进程与渲染进程共用的类型与常量。 */
 
-/** 只预览这些扩展名（不区分大小写）。 */
-export const PREVIEW_EXTENSIONS = ['.jpg', '.jpeg'] as const
+/** 图片预览扩展名（不区分大小写）。 */
+export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'] as const
+
+/** 视频预览扩展名（不区分大小写）。能否播放取决于系统解码器，容器一律先列出。 */
+export const VIDEO_EXTENSIONS = ['.mp4', '.m4v', '.mov', '.webm', '.mkv', '.avi'] as const
+
+/** 需要预览的全部媒体扩展名 = 图片 + 视频。 */
+export const PREVIEW_EXTENSIONS = [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS] as const
 
 /**
  * 删除 JPG 时需要一起带走的同名附属文件扩展名（不区分大小写）。
@@ -30,14 +36,19 @@ export const SIDECAR_EXTENSIONS = [
 ] as const
 
 /** 暂存区目录名，位于照片所在目录下。 */
-export const TRASH_DIR_NAME = '.photoflow-trash'
+export const TRASH_DIR_NAME = '.fileflow-trash'
 
-/** 单张照片。 */
+/** 媒体类型：图片或视频。 */
+export type MediaKind = 'image' | 'video'
+
+/** 单个媒体文件（图片或视频）。 */
 export interface Photo {
-  /** JPG 的绝对路径，同时作为列表 key。 */
+  /** 文件绝对路径，同时作为列表 key。 */
   path: string
   /** 文件名，含扩展名，如 P1011677.JPG。 */
   name: string
+  /** 图片还是视频。 */
+  kind: MediaKind
   /** 所在目录的绝对路径。 */
   dir: string
   /** 字节数。 */
@@ -87,7 +98,7 @@ export interface UndoResult {
 }
 
 /** preload 暴露给渲染进程的 API 形状。 */
-export interface PhotoFlowApi {
+export interface FileFlowApi {
   /** 弹出系统目录选择框；用户取消时返回 null。 */
   pickDirectory: () => Promise<string | null>
   /** 扫描目录顶层的 JPG，不进入子目录。 */

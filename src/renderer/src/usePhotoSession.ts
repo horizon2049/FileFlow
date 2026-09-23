@@ -24,7 +24,7 @@ const TOAST_MS = { info: 3000, error: 6000 } as const
 
 /**
  * 选片会话的全部状态与动作：加载目录、移动光标、标记淘汰、删除、撤销。
- * 组件只消费这里返回的东西，不直接调用 window.photoflow。
+ * 组件只消费这里返回的东西，不直接调用 window.fileflow。
  */
 export function usePhotoSession() {
   const [dir, setDir] = useState<string | null>(null)
@@ -59,7 +59,7 @@ export function usePhotoSession() {
     async (target: string, opts: { reset: boolean }) => {
       setLoading(true)
       try {
-        const result = await window.photoflow.scanDirectory(target)
+        const result = await window.fileflow.scanDirectory(target)
         setDir(result.dir)
         setPhotos(result.photos)
         if (opts.reset) {
@@ -83,9 +83,9 @@ export function usePhotoSession() {
 
   const openDirectory = useCallback(async () => {
     try {
-      const picked = await window.photoflow.pickDirectory()
+      const picked = await window.fileflow.pickDirectory()
       if (!picked) return
-      await window.photoflow.reportStaleTrash(picked)
+      await window.fileflow.reportStaleTrash(picked)
       const count = await load(picked, { reset: true })
       notify(count > 0 ? `已加载 ${count} 张照片` : '该文件夹下没有 JPG 文件')
     } catch (err) {
@@ -158,7 +158,7 @@ export function usePhotoSession() {
     try {
       const before = photosRef.current
       const indexByPath = new Map(before.map((p, i) => [p.path, i]))
-      const result = await window.photoflow.deletePhotos(target.photos)
+      const result = await window.fileflow.deletePhotos(target.photos)
       const removed = new Set(result.batch.photos.map((p) => p.path))
 
       if (removed.size > 0) {
@@ -206,7 +206,7 @@ export function usePhotoSession() {
     }
     setBusy(true)
     try {
-      const result = await window.photoflow.undoDelete(record.batchId)
+      const result = await window.fileflow.undoDelete(record.batchId)
       undoStack.current.pop()
       setUndoDepth(undoStack.current.length)
 

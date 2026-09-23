@@ -1,5 +1,5 @@
-appId: com.horizon.photoflow
-productName: PhotoFlow
+appId: com.horizon.fileflow
+productName: FileFlow
 directories:
   buildResources: build
   output: release
@@ -18,7 +18,7 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
-  shortcutName: PhotoFlow
+  shortcutName: FileFlow
 mac:
   target:
     - target: dmg

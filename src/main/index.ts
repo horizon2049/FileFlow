@@ -1,8 +1,9 @@
 import path from 'node:path'
-import { promises as fs } from 'node:fs'
-import { app, BrowserWindow, dialog, ipcMain, protocol, net, nativeImage, shell } from 'electron'
+import { createReadStream, promises as fs } from 'node:fs'
+import { Readable } from 'node:stream'
+import { app, BrowserWindow, dialog, ipcMain, protocol, nativeImage, shell } from 'electron'
 import { IPC, IMAGE_PROTOCOL, parseImageUrl } from '@shared/ipc'
-import { PREVIEW_EXTENSIONS, TRASH_DIR_NAME } from '@shared/types'
+import { IMAGE_EXTENSIONS, PREVIEW_EXTENSIONS, TRASH_DIR_NAME } from '@shared/types'
 import type { Photo } from '@shared/types'
 import { scanDirectory } from './photoLibrary'
 import { deletePhotos, flushTrashToSystem, pendingCount, undoDelete } from './trashManager'
@@ -11,6 +12,7 @@ import { deletePhotos, flushTrashToSystem, pendingCount, undoDelete } from './tr
 const allowedRoots = new Set<string>()
 
 const previewExts = new Set<string>(PREVIEW_EXTENSIONS)
+const imageExts = new Set<string>(IMAGE_EXTENSIONS)
 
 /** 自定义协议要在 app ready 之前登记，否则拿不到 fetch 权限。 */
 protocol.registerSchemesAsPrivileged([
@@ -39,6 +41,7 @@ function applyCsp(win: BrowserWindow, isDev: boolean): void {
     ? [
         "default-src 'self'",
         `img-src 'self' data: ${IMAGE_PROTOCOL}:`,
+        `media-src 'self' ${IMAGE_PROTOCOL}:`,
         "style-src 'self' 'unsafe-inline'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
         "connect-src 'self' ws: http://localhost:*"
@@ -46,6 +49,7 @@ function applyCsp(win: BrowserWindow, isDev: boolean): void {
     : [
         "default-src 'self'",
         `img-src 'self' ${IMAGE_PROTOCOL}:`,
+        `media-src 'self' ${IMAGE_PROTOCOL}:`,
         "style-src 'self' 'unsafe-inline'",
         "script-src 'self'",
         "connect-src 'self'",
@@ -71,7 +75,7 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     backgroundColor: '#14161a',
-    title: 'PhotoFlow',
+    title: 'FileFlow',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -101,8 +105,9 @@ function createWindow(): void {
 }
 
 /**
- * 图片协议：photoflow-img://local/?p=<绝对路径>[&w=<缩略图长边>]
- * 带 w 时用 nativeImage 缩到指定长边再返回，网格视图靠这个避免几百张全尺寸解码。
+ * 媒体协议：fileflow-img://local/?p=<绝对路径>[&w=<缩略图长边>]
+ * 带 w 时用 nativeImage 缩到指定长边再返回（仅图片），网格视图靠这个避免几百张全尺寸解码。
+ * 不带 w 时返回原文件：图片整体读字节返回，视频按 Range 流式返回以便拖动进度。
  */
 function registerImageProtocol(): void {
   protocol.handle(IMAGE_PROTOCOL, async (request) => {
@@ -110,15 +115,29 @@ function registerImageProtocol(): void {
     if (!parsed) return new Response('bad request', { status: 400 })
 
     const { filePath, width } = parsed
-    if (!previewExts.has(path.extname(filePath).toLowerCase())) {
+    const ext = path.extname(filePath).toLowerCase()
+    if (!previewExts.has(ext)) {
       return new Response('unsupported type', { status: 403 })
     }
     if (!isInAllowedRoot(filePath)) return new Response('forbidden', { status: 403 })
 
     const resolved = path.resolve(filePath)
+    const isImage = imageExts.has(ext)
+
+    // 视频：无论是否带 w 都走流式，忽略缩略图请求（视频没有 nativeImage 缩略图）。
+    if (!isImage) {
+      return streamFile(resolved, mimeFor(resolved), request.headers.get('range'))
+    }
+
     if (width === null) {
+      // 图片原图直接读字节返回。不用 net.fetch(file://…)：那条路对含空格/中文/# 的
+      // 路径未编码会失败，且不保证带 content-type，导致原图静默加载不出、
+      // 大图预览一直停在模糊缩略图那层。
       try {
-        return await net.fetch(`file://${resolved}`)
+        const bytes = await fs.readFile(resolved)
+        return new Response(new Uint8Array(bytes), {
+          headers: { 'content-type': mimeFor(resolved), 'cache-control': 'no-store' }
+        })
       } catch {
         return new Response('not found', { status: 404 })
       }
@@ -144,10 +163,101 @@ function registerImageProtocol(): void {
   })
 }
 
+/**
+ * 以流的方式返回文件，支持 HTTP Range。视频靠这个才能拖动进度、边下边播。
+ * 无 Range 头时整段返回并带 accept-ranges，让播放器知道可以随后按段请求。
+ */
+async function streamFile(
+  filePath: string,
+  contentType: string,
+  rangeHeader: string | null
+): Promise<Response> {
+  let size: number
+  try {
+    size = (await fs.stat(filePath)).size
+  } catch {
+    return new Response('not found', { status: 404 })
+  }
+
+  const range = rangeHeader ? parseRange(rangeHeader, size) : null
+  if (rangeHeader && !range) {
+    // Range 语法不合法或越界，按规范回 416。
+    return new Response('range not satisfiable', {
+      status: 416,
+      headers: { 'content-range': `bytes */${size}` }
+    })
+  }
+
+  const { start, end } = range ?? { start: 0, end: size - 1 }
+  const stream = createReadStream(filePath, { start, end })
+  // Node 可读流转成 Web ReadableStream 交给 Response。
+  const body = Readable.toWeb(stream) as ReadableStream
+
+  const headers: Record<string, string> = {
+    'content-type': contentType,
+    'accept-ranges': 'bytes',
+    'content-length': String(end - start + 1),
+    'cache-control': 'no-store'
+  }
+  if (range) headers['content-range'] = `bytes ${start}-${end}/${size}`
+
+  return new Response(body, { status: range ? 206 : 200, headers })
+}
+
+/** 解析单段 `bytes=start-end`；不合法或越界返回 null。只处理常见的单区间形式。 */
+function parseRange(header: string, size: number): { start: number; end: number } | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
+  if (!match) return null
+  const [, rawStart, rawEnd] = match
+
+  let start: number
+  let end: number
+  if (rawStart === '') {
+    // 后缀形式 bytes=-N：取末尾 N 字节。
+    if (rawEnd === '') return null
+    const suffix = Number.parseInt(rawEnd, 10)
+    if (suffix <= 0) return null
+    start = Math.max(0, size - suffix)
+    end = size - 1
+  } else {
+    start = Number.parseInt(rawStart, 10)
+    end = rawEnd === '' ? size - 1 : Number.parseInt(rawEnd, 10)
+  }
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null
+  if (start > end || start < 0 || end >= size) return null
+  return { start, end }
+}
+
 /** 按长边等比缩放到 longEdge，返回 nativeImage.resize 的尺寸参数。 */
 function fitTo(w: number, h: number, longEdge: number): { width: number; height: number } {
   const scale = longEdge / Math.max(w, h)
   return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) }
+}
+
+/** 按扩展名给原文件响应挑 content-type，缺省按 jpeg。 */
+function mimeFor(filePath: string): string {
+  switch (path.extname(filePath).toLowerCase()) {
+    case '.png':
+      return 'image/png'
+    case '.webp':
+      return 'image/webp'
+    case '.gif':
+      return 'image/gif'
+    case '.mp4':
+    case '.m4v':
+      return 'video/mp4'
+    case '.mov':
+      return 'video/quicktime'
+    case '.webm':
+      return 'video/webm'
+    case '.mkv':
+      return 'video/x-matroska'
+    case '.avi':
+      return 'video/x-msvideo'
+    default:
+      return 'image/jpeg'
+  }
 }
 
 function registerIpc(): void {
@@ -215,7 +325,7 @@ async function reportStaleTrash(win: BrowserWindow, dir: string): Promise<void> 
   })
   if (response === 0) {
     await shell.trashItem(root).catch((err: unknown) => {
-      console.warn('[photoflow] 清理历史暂存区失败', err)
+      console.warn('[fileflow] 清理历史暂存区失败', err)
     })
   }
 }
