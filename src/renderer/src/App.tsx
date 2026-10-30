@@ -28,7 +28,7 @@ export default function App(): React.JSX.Element {
   }, [cursor, photos.length])
 
   const deleteCurrent = useCallback(() => {
-    if (current) s.requestDelete([current])
+    if (current) s.requestDelete([current], { single: true })
   }, [current, s])
 
   const deleteRejected = useCallback(() => {
@@ -86,6 +86,8 @@ export default function App(): React.JSX.Element {
               rejected={rejected.has(current.path)}
               onToggleReject={() => s.toggleReject(current.path)}
               onDelete={deleteCurrent}
+              confirmDelete={s.confirmSingle}
+              onConfirmDeleteChange={s.setConfirmSingle}
               onReveal={() => void window.fileflow.revealInFolder(current.path)}
             />
           ) : (

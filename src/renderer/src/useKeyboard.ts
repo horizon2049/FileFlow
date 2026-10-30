@@ -50,6 +50,11 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
         return
       }
       if (h.disabled) return
+      // 长按 D 不连删：关闭确认后每次按下都会直接删除。
+      if (event.repeat && (key === 'd' || key === 'D')) {
+        event.preventDefault()
+        return
+      }
 
       switch (key) {
         // 上/下：切换文件。

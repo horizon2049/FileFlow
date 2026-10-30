@@ -22,6 +22,17 @@ export interface PendingDeletion {
 
 const TOAST_MS = { info: 3000, error: 6000 } as const
 
+/** “删除单个前确认”开关在 localStorage 里的键。 */
+const CONFIRM_SINGLE_KEY = 'fileflow:confirm-single-delete'
+
+function loadConfirmSingle(): boolean {
+  try {
+    return window.localStorage.getItem(CONFIRM_SINGLE_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
 /**
  * 选片会话的全部状态与动作：加载目录、移动光标、标记淘汰、删除、撤销。
  * 组件只消费这里返回的东西，不直接调用 window.fileflow。
@@ -36,6 +47,8 @@ export function usePhotoSession() {
   const [busy, setBusy] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [pending, setPending] = useState<PendingDeletion | null>(null)
+  /** 删除单个文件前是否弹确认框；批量删除始终确认。 */
+  const [confirmSingle, setConfirmSingleState] = useState(loadConfirmSingle)
 
   const undoStack = useRef<UndoRecord[]>([])
   const [undoDepth, setUndoDepth] = useState(0)
@@ -134,31 +147,22 @@ export function usePhotoSession() {
 
   const clearRejected = useCallback(() => setRejected(new Set()), [])
 
-  /** 打开删除确认框。targets 为空时直接提示，不弹框。 */
-  const requestDelete = useCallback(
-    (targets: Photo[]) => {
-      if (targets.length === 0) {
-        notify('没有需要删除的照片')
-        return
-      }
-      const sidecarCount = targets.reduce((sum, p) => sum + p.sidecars.length, 0)
-      setPending({ photos: targets, sidecarCount })
-    },
-    [notify]
-  )
+  const setConfirmSingle = useCallback((flag: boolean) => {
+    setConfirmSingleState(flag)
+    try {
+      window.localStorage.setItem(CONFIRM_SINGLE_KEY, flag ? 'on' : 'off')
+    } catch {
+      // 存不下也不影响本次会话。
+    }
+  }, [])
 
-  const cancelDelete = useCallback(() => setPending(null), [])
-
-  /** 执行确认框里的删除。 */
-  const confirmDelete = useCallback(async () => {
-    const target = pending
-    if (!target) return
-    setPending(null)
+  /** 把照片移入暂存区，更新列表与撤销栈。 */
+  const performDelete = useCallback(async (targets: Photo[]) => {
     setBusy(true)
     try {
       const before = photosRef.current
       const indexByPath = new Map(before.map((p, i) => [p.path, i]))
-      const result = await window.fileflow.deletePhotos(target.photos)
+      const result = await window.fileflow.deletePhotos(targets)
       const removed = new Set(result.batch.photos.map((p) => p.path))
 
       if (removed.size > 0) {
@@ -195,7 +199,37 @@ export function usePhotoSession() {
     } finally {
       setBusy(false)
     }
-  }, [fail, notify, pending])
+  }, [fail, notify])
+
+  /**
+   * 请求删除。默认打开确认框；删除当前这个（opts.single）且关闭了“删除前确认”时直接删，仍可撤销。
+   * targets 为空时直接提示，不弹框。
+   */
+  const requestDelete = useCallback(
+    (targets: Photo[], opts?: { single?: boolean }) => {
+      if (targets.length === 0) {
+        notify('没有需要删除的照片')
+        return
+      }
+      if (opts?.single && !confirmSingle) {
+        void performDelete(targets)
+        return
+      }
+      const sidecarCount = targets.reduce((sum, p) => sum + p.sidecars.length, 0)
+      setPending({ photos: targets, sidecarCount })
+    },
+    [confirmSingle, notify, performDelete]
+  )
+
+  const cancelDelete = useCallback(() => setPending(null), [])
+
+  /** 执行确认框里的删除。 */
+  const confirmDelete = useCallback(async () => {
+    const target = pending
+    if (!target) return
+    setPending(null)
+    await performDelete(target.photos)
+  }, [pending, performDelete])
 
   /** 撤销最近一次删除，把文件搬回原位并插回列表原下标。 */
   const undo = useCallback(async () => {
@@ -247,6 +281,8 @@ export function usePhotoSession() {
     toasts,
     pending,
     undoDepth,
+    confirmSingle,
+    setConfirmSingle,
     openDirectory,
     reload,
     select,
