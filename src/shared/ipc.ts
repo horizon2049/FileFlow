@@ -5,7 +5,11 @@ export const IPC = {
   deletePhotos: 'fileflow:delete-photos',
   undoDelete: 'fileflow:undo-delete',
   revealInFolder: 'fileflow:reveal-in-folder',
-  reportStaleTrash: 'fileflow:report-stale-trash'
+  reportStaleTrash: 'fileflow:report-stale-trash',
+  showFileMenu: 'fileflow:show-file-menu',
+  /** 主进程 → 渲染进程：用户在右键菜单里选了哪一项。 */
+  fileMenuAction: 'fileflow:file-menu-action',
+  copyFile: 'fileflow:copy-file'
 } as const
 
 /** 渲染进程读取本地图片用的自定义协议，绕开 file:// 在打包后的限制。 */

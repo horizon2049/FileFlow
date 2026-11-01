@@ -89,6 +89,7 @@ export default function App(): React.JSX.Element {
               confirmDelete={s.confirmSingle}
               onConfirmDeleteChange={s.setConfirmSingle}
               onReveal={() => void window.fileflow.revealInFolder(current.path)}
+              onContextMenu={() => s.showFileMenu(current.path)}
             />
           ) : (
             <Empty loading={loading} hasDir={dir !== null} onOpen={() => void s.openDirectory()} />
@@ -105,6 +106,7 @@ export default function App(): React.JSX.Element {
               rejected={rejected.has(photo.path)}
               onSelect={s.select}
               onToggleReject={s.toggleReject}
+              onContextMenu={s.showFileMenu}
             />
           ))}
         </aside>

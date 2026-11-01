@@ -97,6 +97,9 @@ export interface UndoResult {
   failures: { path: string; message: string }[]
 }
 
+/** 文件右键菜单的操作。 */
+export type FileMenuAction = 'copy' | 'reveal'
+
 /** preload 暴露给渲染进程的 API 形状。 */
 export interface FileFlowApi {
   /** 弹出系统目录选择框；用户取消时返回 null。 */
@@ -111,4 +114,10 @@ export interface FileFlowApi {
   revealInFolder: (filePath: string) => Promise<void>
   /** 询问主进程该目录下是否残留上次会话的暂存区，有则弹窗让用户处置。 */
   reportStaleTrash: (dir: string) => Promise<void>
+  /** 在鼠标位置弹出文件的原生右键菜单；选中的操作经 onFileMenuAction 回传。 */
+  showFileMenu: (filePath: string) => Promise<void>
+  /** 订阅右键菜单的选择，返回取消订阅函数。 */
+  onFileMenuAction: (listener: (action: FileMenuAction, filePath: string) => void) => () => void
+  /** 把文件本身放进系统剪贴板，可在访达 / 资源管理器里粘贴。 */
+  copyFile: (filePath: string) => Promise<void>
 }

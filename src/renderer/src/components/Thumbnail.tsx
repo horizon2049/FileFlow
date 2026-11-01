@@ -9,6 +9,8 @@ interface Props {
   rejected: boolean
   onSelect: (index: number) => void
   onToggleReject: (photoPath: string) => void
+  /** 右键：弹出文件菜单。 */
+  onContextMenu: (photoPath: string) => void
 }
 
 /**
@@ -21,7 +23,8 @@ function Thumbnail({
   active,
   rejected,
   onSelect,
-  onToggleReject
+  onToggleReject,
+  onContextMenu
 }: Props): React.JSX.Element {
   const className = ['thumb', active ? 'active' : '', rejected ? 'rejected' : '']
     .filter(Boolean)
@@ -36,6 +39,10 @@ function Thumbnail({
       data-index={index}
       onClick={() => onSelect(index)}
       onDoubleClick={() => onToggleReject(photo.path)}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        onContextMenu(photo.path)
+      }}
       title={`${photo.name}${photo.sidecars.length > 0 ? `（含 ${photo.sidecars.length} 个同名文件）` : ''}`}
       aria-current={active}
       aria-label={`第 ${index + 1} 个 ${photo.name}${isVideo ? '，视频' : ''}${rejected ? '，已标记淘汰' : ''}`}

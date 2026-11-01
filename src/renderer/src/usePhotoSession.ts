@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Photo } from '@shared/types'
+import { basename } from './format'
 
 /** 一条待撤销记录：批次 id + 每张照片删除前在列表中的下标。 */
 interface UndoRecord {
@@ -231,6 +232,26 @@ export function usePhotoSession() {
     await performDelete(target.photos)
   }, [pending, performDelete])
 
+  /** 弹出文件右键菜单：复制文件、打开文件所在位置。 */
+  const showFileMenu = useCallback(
+    (filePath: string) => {
+      window.fileflow.showFileMenu(filePath).catch(fail)
+    },
+    [fail]
+  )
+
+  useEffect(
+    () =>
+      window.fileflow.onFileMenuAction((action, filePath) => {
+        if (action === 'copy') {
+          window.fileflow.copyFile(filePath).then(() => notify(`已复制 ${basename(filePath)}`), fail)
+        } else {
+          window.fileflow.revealInFolder(filePath).catch(fail)
+        }
+      }),
+    [fail, notify]
+  )
+
   /** 撤销最近一次删除，把文件搬回原位并插回列表原下标。 */
   const undo = useCallback(async () => {
     const record = undoStack.current.at(-1)
@@ -293,6 +314,7 @@ export function usePhotoSession() {
     requestDelete,
     cancelDelete,
     confirmDelete,
+    showFileMenu,
     undo
   }
 }

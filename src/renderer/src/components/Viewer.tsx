@@ -13,6 +13,8 @@ interface Props {
   confirmDelete: boolean
   onConfirmDeleteChange: (flag: boolean) => void
   onReveal: () => void
+  /** 在画面上右键：弹出文件菜单。 */
+  onContextMenu: () => void
 }
 
 /** 暴露给父组件的命令式操作，用于键盘控制视频。 */
@@ -25,7 +27,7 @@ export interface ViewerHandle {
 
 /** 大图/视频预览。图片直接加载原图；视频用 <video controls> 播放并支持流式拖动。滚轮缩放，放大后可拖拽平移。 */
 const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(
-  { photo, rejected, onToggleReject, onDelete, confirmDelete, onConfirmDeleteChange, onReveal },
+  { photo, rejected, onToggleReject, onDelete, confirmDelete, onConfirmDeleteChange, onReveal, onContextMenu },
   ref
 ): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -54,7 +56,13 @@ const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(
   return (
     <div className={rejected ? 'viewer rejected' : 'viewer'}>
       {/* 按路径加 key：切换文件时缩放、加载失败等状态全部归零。 */}
-      <MediaCanvas key={photo.path} photo={photo} rejected={rejected} videoRef={videoRef} />
+      <MediaCanvas
+        key={photo.path}
+        photo={photo}
+        rejected={rejected}
+        videoRef={videoRef}
+        onContextMenu={onContextMenu}
+      />
 
       <div className="viewer-actions">
         <button onClick={onToggleReject}>
@@ -89,11 +97,13 @@ export default Viewer
 function MediaCanvas({
   photo,
   rejected,
-  videoRef
+  videoRef,
+  onContextMenu
 }: {
   photo: Photo
   rejected: boolean
   videoRef: React.RefObject<HTMLVideoElement | null>
+  onContextMenu: () => void
 }): React.JSX.Element {
   const [failed, setFailed] = useState(false)
   const isVideo = photo.kind === 'video'
@@ -109,6 +119,10 @@ function MediaCanvas({
     <div
       ref={zoom.containerRef}
       className={className}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        onContextMenu()
+      }}
       onDoubleClick={(event) => {
         // 视频上的双击留给原生控件（全屏等）。
         if (!(event.target instanceof HTMLVideoElement)) zoom.reset()

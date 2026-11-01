@@ -1,10 +1,11 @@
 import path from 'node:path'
 import { createReadStream, promises as fs } from 'node:fs'
 import { Readable } from 'node:stream'
-import { app, BrowserWindow, dialog, ipcMain, protocol, nativeImage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, nativeImage, shell } from 'electron'
 import { IPC, IMAGE_PROTOCOL, parseImageUrl } from '@shared/ipc'
 import { IMAGE_EXTENSIONS, PREVIEW_EXTENSIONS, TRASH_DIR_NAME } from '@shared/types'
-import type { Photo } from '@shared/types'
+import type { FileMenuAction, Photo } from '@shared/types'
+import { copyFileToClipboard } from './fileClipboard'
 import { scanDirectory } from './photoLibrary'
 import { deletePhotos, flushTrashToSystem, pendingCount, undoDelete } from './trashManager'
 
@@ -296,6 +297,29 @@ function registerIpc(): void {
   ipcMain.handle(IPC.revealInFolder, async (_event, filePath: string) => {
     if (!isInAllowedRoot(filePath)) throw new Error('该文件未经授权')
     shell.showItemInFolder(path.resolve(filePath))
+  })
+
+  // 菜单只负责让用户选，具体操作回给渲染进程再走对应 IPC，成功/失败提示统一在渲染进程出。
+  ipcMain.handle(IPC.showFileMenu, async (event, filePath: string) => {
+    if (!isInAllowedRoot(filePath)) throw new Error('该文件未经授权')
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    const choose = (action: FileMenuAction) => () => {
+      if (!event.sender.isDestroyed()) event.sender.send(IPC.fileMenuAction, action, filePath)
+    }
+    Menu.buildFromTemplate([
+      { label: '复制文件', click: choose('copy') },
+      { label: '打开文件所在位置', click: choose('reveal') }
+    ]).popup({ window: win })
+  })
+
+  ipcMain.handle(IPC.copyFile, async (_event, filePath: string) => {
+    if (!isInAllowedRoot(filePath)) throw new Error('该文件未经授权')
+    const resolved = path.resolve(filePath)
+    await fs.access(resolved).catch(() => {
+      throw new Error('文件不存在，可能已被移动或删除')
+    })
+    await copyFileToClipboard(resolved)
   })
 
   ipcMain.handle(IPC.reportStaleTrash, async (event, dir: string) => {
